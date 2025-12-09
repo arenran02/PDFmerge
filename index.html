@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로컬 PDF 툴</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- pdf-lib (이미지 → PDF, PDF 병합용) -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f4f5;
+      color: #111827;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    .app {
+      width: 100%;
+      max-width: 900px;
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.15);
+      padding: 24px;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h1 span.logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #111827;
+      color: #f9fafb;
+      font-size: 16px;
+    }
+    .mode-switch {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0 20px;
+    }
+    .mode-option {
+      flex: 1;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s ease-out;
+    }
+    .mode-option input {
+      display: none;
+    }
+    .mode-option.active {
+      background: #111827;
+      color: #f9fafb;
+      border-color: #111827;
+      transform: translateY(-1px);
+    }
+    .mode-option span.icon {
+      font-size: 16px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 16px;
+    }
+
+    .drop-zone {
+      border-radius: 16px;
+      border: 1.8px dashed #d1d5db;
+      padding: 24px;
+      text-align: center;
+      background: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.05s ease-out;
+    }
+    .drop-zone.dragover {
+      border-color: #111827;
+      background: #e5e7eb;
+      transform: translateY(-1px);
+    }
+    .drop-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .drop-sub {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .browse-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid #111827;
+      background: #111827;
+      color: #f9fafb;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      gap: 6px;
+    }
+    .browse-btn span {
+      font-size: 14px;
+    }
+    #file-input {
+      display: none;
+    }
+
+    .list-container {
+      margin-top: 20px;
+    }
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+    .clear-btn {
+      border: none;
+      background: none;
+      color: #9ca3af;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .clear-btn:hover {
+      color: #ef4444;
+    }
+
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 260px;
+      overflow-y: auto;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      gap: 10px;
+      font-size: 13px;
+      cursor: grab;
+      user-select: none;
+    }
+    .file-item.dragging {
+      opacity: 0.4;
+    }
+    .file-item + .file-item {
+      border-top: 1px solid #e5e7eb;
+    }
+    .file-thumb {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .file-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .file-meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .file-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file-size {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .drag-handle {
+      font-size: 16px;
+      color: #9ca3af;
+      cursor: grab;
+      padding: 0 4px;
+    }
+    .remove-btn {
+      border: none;
+      background: none;
+      color: #9ca3af;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .remove-btn:hover {
+      color: #ef4444;
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .primary-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #111827;
+      color: #f9fafb;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35);
+      transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, opacity 0.15s;
+    }
+    .primary-btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+    .primary-btn:not(:disabled):active {
+      transform: translateY(1px);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.25);
+    }
+
+    .secondary-btn {
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 13px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      cursor: pointer;
+      color: #374151;
+    }
+
+    @media (max-width: 640px) {
+      .app {
+        padding: 18px;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      .file-item {
+        padding: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>
+      <span class="logo">P</span>
+      로컬 PDF 도구
+    </h1>
+
+    <!-- 모드 전환 -->
+    <div class="mode-switch" id="mode-switch">
+      <label class="mode-option active" data-mode="images">
+        <input type="radio" name="mode" value="images" checked />
+        <span class="icon">🖼️</span>
+        <span>이미지 → PDF</span>
+      </label>
+      <label class="mode-option" data-mode="merge">
+        <input type="radio" name="mode" value="merge" />
+        <span class="icon">📄</span>
+        <span>PDF 합치기</span>
+      </label>
+    </div>
+
+    <div class="hint" id="mode-hint">
+      PNG / JPG 여러 개를 올려서 하나의 PDF로 만들 수 있어요.
+    </div>
+
+    <!-- 드래그 앤 드롭 영역 -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-title" id="drop-title">
+        여기에 파일을 드래그해서 올려주세요
+      </div>
+      <div class="drop-sub" id="drop-sub">
+        또는
+      </div>
+      <button class="browse-btn" id="browse-btn" type="button">
+        <span>📁</span> 파일 선택하기
+      </button>
+      <input type="file" id="file-input" multiple />
+    </div>
+
+    <!-- 파일 리스트 -->
+    <div class="list-container">
+      <div class="list-header">
+        <span>파일 목록 (드래그해서 순서 변경 가능)</span>
+        <button class="clear-btn" id="clear-btn" type="button">전체 지우기</button>
+      </div>
+      <ul class="file-list" id="file-list"></ul>
+    </div>
+
+    <!-- 액션 버튼 -->
+    <div class="actions">
+      <button class="secondary-btn" id="test-order-btn" type="button" style="display:none;">
+        순서 테스트
+      </button>
+      <button class="primary-btn" id="convert-btn" type="button" disabled>
+        <span id="convert-label">PDF 만들기</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("file-input");
+    const fileListEl = document.getElementById("file-list");
+    const clearBtn = document.getElementById("clear-btn");
+    const convertBtn = document.getElementById("convert-btn");
+    const convertLabel = document.getElementById("convert-label");
+    const modeSwitch = document.getElementById("mode-switch");
+    const modeHint = document.getElementById("mode-hint");
+    const browseBtn = document.getElementById("browse-btn");
+    const dropTitle = document.getElementById("drop-title");
+    const dropSub = document.getElementById("drop-sub");
+
+    let mode = "images"; // "images" or "merge"
+    let fileItems = [];
+    let dragSrcIndex = null;
+
+    function updateModeUI() {
+      const options = modeSwitch.querySelectorAll(".mode-option");
+      options.forEach((opt) => {
+        if (opt.dataset.mode === mode) opt.classList.add("active");
+        else opt.classList.remove("active");
+      });
+
+      if (mode === "images") {
+        modeHint.textContent = "PNG / JPG 여러 개를 올려서 하나의 PDF로 만들 수 있어요.";
+        convertLabel.textContent = "PDF 만들기";
+        dropTitle.textContent = "이미지 파일을 드래그해서 올려주세요";
+        dropSub.textContent = "또는";
+        fileInput.accept = "image/png,image/jpeg";
+      } else {
+        modeHint.textContent = "여러 개의 PDF 파일을 올려서 하나의 PDF로 합칠 수 있어요.";
+        convertLabel.textContent = "PDF 합치기";
+        dropTitle.textContent = "PDF 파일을 드래그해서 올려주세요";
+        dropSub.textContent = "또는";
+        fileInput.accept = "application/pdf";
+      }
+      fileItems = [];
+      renderFileList();
+    }
+
+    modeSwitch.addEventListener("click", (e) => {
+      const label = e.target.closest(".mode-option");
+      if (!label) return;
+      const newMode = label.dataset.mode;
+      if (newMode && newMode !== mode) {
+        mode = newMode;
+        updateModeUI();
+      }
+    });
+
+    browseBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", (e) => {
+      if (!e.target.files) return;
+      handleFiles(e.target.files);
+      fileInput.value = "";
+    });
+
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (eventName === "drop") {
+          dropZone.classList.remove("dragover");
+        } else if (!dropZone.contains(e.relatedTarget)) {
+          dropZone.classList.remove("dragover");
+        }
+      });
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files) return;
+      handleFiles(dt.files);
+    });
+
+    function handleFiles(fileList) {
+      const arr = Array.from(fileList);
+      const filtered = arr.filter((file) => {
+        if (mode === "images") {
+          return file.type === "image/png" || file.type === "image/jpeg";
+        } else {
+          return file.type === "application/pdf";
+        }
+      });
+
+      const rejectedCount = arr.length - filtered.length;
+      if (rejectedCount > 0) {
+        alert(
+          mode === "images"
+            ? "PNG/JPG 형식의 이미지 파일만 추가할 수 있습니다."
+            : "PDF 파일만 추가할 수 있습니다."
+        );
+      }
+
+      filtered.forEach((file) => {
+        fileItems.push({
+          id: Date.now().toString() + Math.random().toString(16).slice(2),
+          file,
+        });
+      });
+
+      renderFileList();
+    }
+
+    function renderFileList() {
+      fileListEl.innerHTML = "";
+      if (fileItems.length === 0) {
+        convertBtn.disabled = true;
+        return;
+      }
+      convertBtn.disabled = false;
+
+      fileItems.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.className = "file-item";
+        li.draggable = true;
+        li.dataset.index = index;
+
+        const handle = document.createElement("span");
+        handle.className = "drag-handle";
+        handle.textContent = "⋮⋮";
+
+        const thumb = document.createElement("div");
+        thumb.className = "file-thumb";
+
+        if (mode === "images") {
+          const img = document.createElement("img");
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(item.file);
+          thumb.appendChild(img);
+        } else {
+          thumb.textContent = "📄";
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "file-meta";
+
+        const name = document.createElement("div");
+        name.className = "file-name";
+        name.textContent = item.file.name;
+
+        const size = document.createElement("div");
+        size.className = "file-size";
+        size.textContent = formatBytes(item.file.size);
+
+        meta.appendChild(name);
+        meta.appendChild(size);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "remove-btn";
+        removeBtn.type = "button";
+        removeBtn.textContent = "✕";
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileItems.splice(index, 1);
+          renderFileList();
+        });
+
+        li.appendChild(handle);
+        li.appendChild(thumb);
+        li.appendChild(meta);
+        li.appendChild(removeBtn);
+
+        li.addEventListener("dragstart", (e) => {
+          dragSrcIndex = Number(li.dataset.index);
+          li.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+        });
+
+        li.addEventListener("dragend", () => {
+          li.classList.remove("dragging");
+        });
+
+        li.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          const targetIndex = Number(li.dataset.index);
+          if (targetIndex === dragSrcIndex || dragSrcIndex === null) return;
+          moveItem(dragSrcIndex, targetIndex);
+          dragSrcIndex = targetIndex;
+          renderFileList();
+        });
+
+        fileListEl.appendChild(li);
+      });
+    }
+
+    function moveItem(fromIndex, toIndex) {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= fileItems.length ||
+        toIndex >= fileItems.length
+      )
+        return;
+      const [moved] = fileItems.splice(fromIndex, 1);
+      fileItems.splice(toIndex, 0, moved);
+    }
+
+    clearBtn.addEventListener("click", () => {
+      if (fileItems.length === 0) return;
+      if (confirm("모든 파일을 목록에서 제거할까요?")) {
+        fileItems = [];
+        renderFileList();
+      }
+    });
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
+    }
+
+    convertBtn.addEventListener("click", async () => {
+      if (fileItems.length === 0) {
+        alert("먼저 파일을 추가해주세요.");
+        return;
+      }
+
+      convertBtn.disabled = true;
+      const originalLabel = convertLabel.textContent;
+      convertLabel.textContent = "처리 중...";
+
+      try {
+        if (mode === "images") {
+          await createPdfFromImages();
+        } else {
+          await mergePdfs();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("PDF 처리 중 오류가 발생했습니다. 콘솔을 확인해 주세요.");
+      } finally {
+        convertBtn.disabled = false;
+        convertLabel.textContent = originalLabel;
+      }
+    });
+
+    async function createPdfFromImages() {
+      const { PDFDocument } = PDFLib;
+      const pdfDoc = await PDFDocument.create();
+
+      for (const item of fileItems) {
+        const file = item.file;
+        const arrayBuffer = await file.arrayBuffer();
+        let image;
+        if (file.type === "image/png") {
+          image = await pdfDoc.embedPng(arrayBuffer);
+        } else {
+          image = await pdfDoc.embedJpg(arrayBuffer);
+        }
+
+        const imgDims = image.scale(1);
+        const page = pdfDoc.addPage();
+        const pageWidth = page.getWidth();
+        const pageHeight = page.getHeight();
+
+        const scale = Math.min(
+          pageWidth / imgDims.width,
+          pageHeight / imgDims.height
+        );
+        const imgWidth = imgDims.width * scale;
+        const imgHeight = imgDims.height * scale;
+
+        page.drawImage(image, {
+          x: (pageWidth - imgWidth) / 2,
+          y: (pageHeight - imgHeight) / 2,
+          width: imgWidth,
+          height: imgHeight,
+        });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      downloadPdf(pdfBytes, "images-to-pdf.pdf");
+    }
+
+    async function mergePdfs() {
+      const { PDFDocument } = PDFLib;
+      const mergedPdf = await PDFDocument.create();
+
+      for (const item of fileItems) {
+        const bytes = await item.file.arrayBuffer();
+        const pdf = await PDFDocument.load(bytes);
+        const copiedPages = await mergedPdf.copyPages(
+          pdf,
+          pdf.getPageIndices()
+        );
+        copiedPages.forEach((p) => mergedPdf.addPage(p));
+      }
+
+      const pdfBytes = await mergedPdf.save();
+      downloadPdf(pdfBytes, "merged.pdf");
+    }
+
+    function downloadPdf(pdfBytes, filename) {
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    }
+
+    updateModeUI();
+  </script>
+</body>
+</html>
