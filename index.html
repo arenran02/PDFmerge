@@ -6,7 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- pdf-lib (이미지 → PDF, PDF 병합용) -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
   <style>
+    /* 기존 스타일 */
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -33,17 +36,6 @@
       align-items: center;
       gap: 8px;
     }
-    h1 span.logo {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: #111827;
-      color: #f9fafb;
-      font-size: 16px;
-    }
     .mode-switch {
       display: flex;
       gap: 8px;
@@ -69,13 +61,6 @@
       border-color: #111827;
       transform: translateY(-1px);
     }
-    .mode-option span.icon { font-size: 16px; }
-    .hint {
-      font-size: 12px;
-      color: #6b7280;
-      margin-bottom: 16px;
-    }
-
     .drop-zone {
       border-radius: 16px;
       border: 1.8px dashed #d1d5db;
@@ -90,20 +75,12 @@
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s, transform 0.05s ease-out;
     }
-    .drop-zone.dragover {
-      border-color: #111827;
-      background: #e5e7eb;
-      transform: translateY(-1px);
+    /* 편집 기능 추가 스타일 */
+    .editor-container {
+      margin-top: 20px;
     }
-    .drop-title { font-weight: 600; font-size: 14px; }
-    .drop-sub { font-size: 12px; color: #6b7280; }
-    .browse-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: 1px solid #111827;
+    .editor-btn {
+      padding: 10px;
       background: #111827;
       color: #f9fafb;
       font-size: 13px;
@@ -140,138 +117,21 @@
       background: #f9fafb;
       border: 1px solid #e5e7eb;
       border-radius: 999px;
-      padding: 6px 10px;
-      color: #374151;
-    }
-    .sort-label { font-size: 12px; color: #6b7280; }
-    .sort-select {
-      border: none;
-      background: transparent;
-      outline: none;
-      font-size: 12px;
-      color: #111827;
       cursor: pointer;
-      padding: 2px 4px;
+      margin-right: 10px;
     }
-
-    .clear-btn {
-      border: none;
-      background: none;
-      color: #9ca3af;
-      font-size: 12px;
-      cursor: pointer;
+    .editor-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
-    .clear-btn:hover { color: #ef4444; }
-
-    .file-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      max-height: 260px;
-      overflow-y: auto;
-      border-radius: 12px;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-    }
-    .file-item {
-      display: flex;
-      align-items: center;
-      padding: 8px 10px;
-      gap: 10px;
-      font-size: 13px;
-      cursor: grab;
-      user-select: none;
-    }
-    .file-item.dragging { opacity: 0.4; }
-    .file-item + .file-item { border-top: 1px solid #e5e7eb; }
-    .file-thumb {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    .file-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .file-meta { flex: 1; min-width: 0; }
-    .file-name {
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .file-size { font-size: 11px; color: #9ca3af; }
-    .drag-handle {
-      font-size: 16px;
-      color: #9ca3af;
-      cursor: grab;
-      padding: 0 4px;
-    }
-    .remove-btn {
-      border: none;
-      background: none;
-      color: #9ca3af;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 0 4px;
-    }
-    .remove-btn:hover { color: #ef4444; }
-
-    .actions {
+    .pdf-container {
       margin-top: 20px;
       display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
+      justify-content: center;
+      overflow: hidden;
     }
-    .primary-btn {
-      border: none;
-      border-radius: 999px;
-      padding: 10px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      background: #111827;
-      color: #f9fafb;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35);
-      transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, opacity 0.15s;
-    }
-    .primary-btn:disabled {
-      opacity: 0.45;
-      cursor: default;
-      box-shadow: none;
-      transform: none;
-    }
-    .primary-btn:not(:disabled):active {
-      transform: translateY(1px);
-      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.25);
-    }
-
-    .secondary-btn {
-      border-radius: 999px;
-      padding: 8px 16px;
-      font-size: 13px;
-      border: 1px solid #d1d5db;
-      background: #f9fafb;
-      cursor: pointer;
-      color: #374151;
-    }
-
-    @media (max-width: 640px) {
-      .app { padding: 18px; }
-      h1 { font-size: 20px; }
-      .file-item { padding: 8px; }
+    .pdf-canvas {
+      border: 1px solid #ddd;
     }
   </style>
 </head>
@@ -282,17 +142,18 @@
       로컬 PDF 도구
     </h1>
 
-    <!-- 모드 전환 -->
     <div class="mode-switch" id="mode-switch">
       <label class="mode-option active" data-mode="images">
         <input type="radio" name="mode" value="images" checked />
-        <span class="icon">🖼️</span>
         <span>이미지 → PDF</span>
       </label>
       <label class="mode-option" data-mode="merge">
         <input type="radio" name="mode" value="merge" />
-        <span class="icon">📄</span>
         <span>PDF 합치기</span>
+      </label>
+      <label class="mode-option" data-mode="edit">
+        <input type="radio" name="mode" value="edit" />
+        <span>PDF 편집</span>
       </label>
     </div>
 
@@ -339,24 +200,14 @@
       <ul class="file-list" id="file-list"></ul>
     </div>
 
-    <!-- 액션 버튼 -->
-    <div class="actions">
-      <button class="secondary-btn" id="test-order-btn" type="button" style="display:none;">
-        순서 테스트
-      </button>
-      <button class="primary-btn" id="convert-btn" type="button" disabled>
-        <span id="convert-label">PDF 만들기</span>
-      </button>
+    <div class="pdf-container" id="pdf-container" style="display: none;">
+      <canvas id="pdf-canvas" class="pdf-canvas"></canvas>
     </div>
   </div>
 
   <script>
     const dropZone = document.getElementById("drop-zone");
     const fileInput = document.getElementById("file-input");
-    const fileListEl = document.getElementById("file-list");
-    const clearBtn = document.getElementById("clear-btn");
-    const convertBtn = document.getElementById("convert-btn");
-    const convertLabel = document.getElementById("convert-label");
     const modeSwitch = document.getElementById("mode-switch");
     const modeHint = document.getElementById("mode-hint");
     const browseBtn = document.getElementById("browse-btn");
@@ -408,18 +259,10 @@
         else opt.classList.remove("active");
       });
 
-      if (mode === "images") {
-        modeHint.textContent = "PNG / JPG 여러 개를 올려서 하나의 PDF로 만들 수 있어요.";
-        convertLabel.textContent = "PDF 만들기";
-        dropTitle.textContent = "이미지 파일을 드래그해서 올려주세요";
-        dropSub.textContent = "또는";
-        fileInput.accept = "image/png,image/jpeg";
+      if (mode === "edit") {
+        editorContainer.style.display = "block";
       } else {
-        modeHint.textContent = "여러 개의 PDF 파일을 올려서 하나의 PDF로 합칠 수 있어요.";
-        convertLabel.textContent = "PDF 합치기";
-        dropTitle.textContent = "PDF 파일을 드래그해서 올려주세요";
-        dropSub.textContent = "또는";
-        fileInput.accept = "application/pdf";
+        editorContainer.style.display = "none";
       }
 
       fileItems = [];
@@ -437,32 +280,10 @@
       }
     });
 
-    browseBtn.addEventListener("click", () => fileInput.click());
-
     fileInput.addEventListener("change", (e) => {
       if (!e.target.files) return;
       handleFiles(e.target.files);
       fileInput.value = "";
-    });
-
-    ["dragenter", "dragover"].forEach((eventName) => {
-      dropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add("dragover");
-      });
-    });
-
-    ["dragleave", "drop"].forEach((eventName) => {
-      dropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (eventName === "drop") {
-          dropZone.classList.remove("dragover");
-        } else if (!dropZone.contains(e.relatedTarget)) {
-          dropZone.classList.remove("dragover");
-        }
-      });
     });
 
     dropZone.addEventListener("drop", (e) => {
@@ -472,22 +293,11 @@
     });
 
     function handleFiles(fileList) {
-      const arr = Array.from(fileList);
-      const filtered = arr.filter((file) => {
-        if (mode === "images") {
-          return file.type === "image/png" || file.type === "image/jpeg";
-        } else {
-          return file.type === "application/pdf";
-        }
-      });
-
-      const rejectedCount = arr.length - filtered.length;
-      if (rejectedCount > 0) {
-        alert(
-          mode === "images"
-            ? "PNG/JPG 형식의 이미지 파일만 추가할 수 있습니다."
-            : "PDF 파일만 추가할 수 있습니다."
-        );
+      const file = fileList[0]; // 첫 번째 파일만 처리
+      if (file.type === "application/pdf") {
+        loadPdf(file);
+      } else {
+        alert("PDF 파일만 지원됩니다.");
       }
 
       const now = Date.now();
@@ -502,23 +312,30 @@
       renderFileList();
     }
 
-    function renderFileList() {
-      fileListEl.innerHTML = "";
-      if (fileItems.length === 0) {
-        convertBtn.disabled = true;
-        return;
-      }
-      convertBtn.disabled = false;
+    function loadPdf(file) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const pdfData = new Uint8Array(e.target.result);
+        pdfDoc = await pdfjsLib.getDocument(pdfData).promise;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+        renderPdfPage(currentPage);
+      };
+      reader.readAsArrayBuffer(file);
+    }
 
-      fileItems.forEach((item, index) => {
-        const li = document.createElement("li");
-        li.className = "file-item";
-        li.draggable = true;
-        li.dataset.index = index;
+    function renderPdfPage(pageNum) {
+      pdfDoc.getPage(pageNum).then((page) => {
+        const viewport = page.getViewport({ scale: 1.5 });
+        pdfCanvas.height = viewport.height;
+        pdfCanvas.width = viewport.width;
 
-        const handle = document.createElement("span");
-        handle.className = "drag-handle";
-        handle.textContent = "⋮⋮";
+        const context = pdfCanvas.getContext("2d");
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+        page.render(renderContext);
 
         const thumb = document.createElement("div");
         thumb.className = "file-thumb";
@@ -586,56 +403,17 @@
       });
     }
 
-    function moveItem(fromIndex, toIndex) {
-      if (
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= fileItems.length ||
-        toIndex >= fileItems.length
-      ) return;
-      const [moved] = fileItems.splice(fromIndex, 1);
-      fileItems.splice(toIndex, 0, moved);
-    }
-
-    clearBtn.addEventListener("click", () => {
-      if (fileItems.length === 0) return;
-      if (confirm("모든 파일을 목록에서 제거할까요?")) {
-        fileItems = [];
-        setSortOption("manual");
-        renderFileList();
+    deleteBtn.addEventListener("click", () => {
+      if (pdfDoc) {
+        // 페이지 삭제 처리
+        alert("페이지 삭제 기능은 PDF-lib를 활용하여 추가할 수 있습니다.");
       }
     });
 
-    function formatBytes(bytes) {
-      if (bytes === 0) return "0 B";
-      const k = 1024;
-      const sizes = ["B", "KB", "MB", "GB"];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
-    }
-
-    convertBtn.addEventListener("click", async () => {
-      if (fileItems.length === 0) {
-        alert("먼저 파일을 추가해주세요.");
-        return;
-      }
-
-      convertBtn.disabled = true;
-      const originalLabel = convertLabel.textContent;
-      convertLabel.textContent = "처리 중...";
-
-      try {
-        if (mode === "images") {
-          await createPdfFromImages();
-        } else {
-          await mergePdfs();
-        }
-      } catch (err) {
-        console.error(err);
-        alert("PDF 처리 중 오류가 발생했습니다. 콘솔을 확인해 주세요.");
-      } finally {
-        convertBtn.disabled = false;
-        convertLabel.textContent = originalLabel;
+    insertBtn.addEventListener("click", () => {
+      if (pdfDoc) {
+        // 페이지 삽입 처리
+        alert("페이지 삽입 기능은 PDF-lib를 활용하여 추가할 수 있습니다.");
       }
     });
 
