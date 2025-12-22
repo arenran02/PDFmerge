@@ -7,9 +7,7 @@
   <!-- pdf-lib (이미지 → PDF, PDF 병합용) -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -64,18 +62,14 @@
       font-size: 14px;
       transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s ease-out;
     }
-    .mode-option input {
-      display: none;
-    }
+    .mode-option input { display: none; }
     .mode-option.active {
       background: #111827;
       color: #f9fafb;
       border-color: #111827;
       transform: translateY(-1px);
     }
-    .mode-option span.icon {
-      font-size: 16px;
-    }
+    .mode-option span.icon { font-size: 16px; }
     .hint {
       font-size: 12px;
       color: #6b7280;
@@ -101,14 +95,8 @@
       background: #e5e7eb;
       transform: translateY(-1px);
     }
-    .drop-title {
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .drop-sub {
-      font-size: 12px;
-      color: #6b7280;
-    }
+    .drop-title { font-weight: 600; font-size: 14px; }
+    .drop-sub { font-size: 12px; color: #6b7280; }
     .browse-btn {
       display: inline-flex;
       align-items: center;
@@ -123,24 +111,49 @@
       cursor: pointer;
       gap: 6px;
     }
-    .browse-btn span {
-      font-size: 14px;
-    }
-    #file-input {
-      display: none;
-    }
+    .browse-btn span { font-size: 14px; }
+    #file-input { display: none; }
 
-    .list-container {
-      margin-top: 20px;
-    }
+    .list-container { margin-top: 20px; }
     .list-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       font-size: 13px;
       color: #6b7280;
       margin-bottom: 8px;
+      flex-wrap: wrap;
     }
+    .list-header-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* 정렬 UI 추가 */
+    .sort-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: #374151;
+    }
+    .sort-label { font-size: 12px; color: #6b7280; }
+    .sort-select {
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 12px;
+      color: #111827;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+
     .clear-btn {
       border: none;
       background: none;
@@ -148,9 +161,7 @@
       font-size: 12px;
       cursor: pointer;
     }
-    .clear-btn:hover {
-      color: #ef4444;
-    }
+    .clear-btn:hover { color: #ef4444; }
 
     .file-list {
       list-style: none;
@@ -171,12 +182,8 @@
       cursor: grab;
       user-select: none;
     }
-    .file-item.dragging {
-      opacity: 0.4;
-    }
-    .file-item + .file-item {
-      border-top: 1px solid #e5e7eb;
-    }
+    .file-item.dragging { opacity: 0.4; }
+    .file-item + .file-item { border-top: 1px solid #e5e7eb; }
     .file-thumb {
       width: 32px;
       height: 32px;
@@ -194,20 +201,14 @@
       height: 100%;
       object-fit: cover;
     }
-    .file-meta {
-      flex: 1;
-      min-width: 0;
-    }
+    .file-meta { flex: 1; min-width: 0; }
     .file-name {
       font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .file-size {
-      font-size: 11px;
-      color: #9ca3af;
-    }
+    .file-size { font-size: 11px; color: #9ca3af; }
     .drag-handle {
       font-size: 16px;
       color: #9ca3af;
@@ -222,9 +223,7 @@
       cursor: pointer;
       padding: 0 4px;
     }
-    .remove-btn:hover {
-      color: #ef4444;
-    }
+    .remove-btn:hover { color: #ef4444; }
 
     .actions {
       margin-top: 20px;
@@ -270,15 +269,9 @@
     }
 
     @media (max-width: 640px) {
-      .app {
-        padding: 18px;
-      }
-      h1 {
-        font-size: 20px;
-      }
-      .file-item {
-        padding: 8px;
-      }
+      .app { padding: 18px; }
+      h1 { font-size: 20px; }
+      .file-item { padding: 8px; }
     }
   </style>
 </head>
@@ -324,9 +317,25 @@
     <!-- 파일 리스트 -->
     <div class="list-container">
       <div class="list-header">
-        <span>파일 목록 (드래그해서 순서 변경 가능)</span>
+        <div class="list-header-left">
+          <span>파일 목록 (드래그해서 순서 변경 가능)</span>
+
+          <!-- ✅ 정렬 옵션 추가 -->
+          <div class="sort-wrap" title="정렬을 적용한 뒤 드래그로 바꾸면 수동으로 전환됩니다.">
+            <span class="sort-label">정렬</span>
+            <select class="sort-select" id="sort-select">
+              <option value="manual" selected>수동(드래그)</option>
+              <option value="name-asc">이름순 (A→Z)</option>
+              <option value="name-desc">이름순 (Z→A)</option>
+              <option value="time-asc">시간순 (오래된→최신)</option>
+              <option value="time-desc">시간순 (최신→오래된)</option>
+            </select>
+          </div>
+        </div>
+
         <button class="clear-btn" id="clear-btn" type="button">전체 지우기</button>
       </div>
+
       <ul class="file-list" id="file-list"></ul>
     </div>
 
@@ -354,9 +363,43 @@
     const dropTitle = document.getElementById("drop-title");
     const dropSub = document.getElementById("drop-sub");
 
+    // ✅ 정렬 셀렉트
+    const sortSelect = document.getElementById("sort-select");
+    let sortOption = "manual";
+
     let mode = "images"; // "images" or "merge"
     let fileItems = [];
     let dragSrcIndex = null;
+
+    function setSortOption(next) {
+      sortOption = next;
+      sortSelect.value = next;
+    }
+
+    function applySort(option) {
+      if (option === "manual") return;
+
+      if (option === "name-asc") {
+        fileItems.sort((a, b) =>
+          a.file.name.localeCompare(b.file.name, "ko", { numeric: true, sensitivity: "base" })
+        );
+      } else if (option === "name-desc") {
+        fileItems.sort((a, b) =>
+          b.file.name.localeCompare(a.file.name, "ko", { numeric: true, sensitivity: "base" })
+        );
+      } else if (option === "time-asc") {
+        fileItems.sort((a, b) => a.addedAt - b.addedAt);
+      } else if (option === "time-desc") {
+        fileItems.sort((a, b) => b.addedAt - a.addedAt);
+      }
+    }
+
+    sortSelect.addEventListener("change", (e) => {
+      const val = e.target.value;
+      setSortOption(val);
+      applySort(val);
+      renderFileList();
+    });
 
     function updateModeUI() {
       const options = modeSwitch.querySelectorAll(".mode-option");
@@ -378,7 +421,9 @@
         dropSub.textContent = "또는";
         fileInput.accept = "application/pdf";
       }
+
       fileItems = [];
+      setSortOption("manual"); // ✅ 모드 바꾸면 정렬도 초기화
       renderFileList();
     }
 
@@ -445,12 +490,17 @@
         );
       }
 
-      filtered.forEach((file) => {
+      const now = Date.now();
+      filtered.forEach((file, idx) => {
         fileItems.push({
-          id: Date.now().toString() + Math.random().toString(16).slice(2),
+          id: now.toString() + "-" + idx.toString() + "-" + Math.random().toString(16).slice(2),
           file,
+          addedAt: now + idx, // ✅ 추가 시간(시간순 정렬용, 동일 ms 방지)
         });
       });
+
+      // ✅ 파일 추가 후에는 "현재 선택된 정렬"을 강제 적용하지 않음(드래그 우선)
+      // 필요하면 여기서 applySort(sortOption) 호출로 "항상 정렬 유지"로 바꿀 수 있음.
 
       renderFileList();
     }
@@ -518,6 +568,9 @@
         li.appendChild(removeBtn);
 
         li.addEventListener("dragstart", (e) => {
+          // ✅ 드래그 시작하면 "수동"으로 전환(정렬 강제 방지)
+          if (sortOption !== "manual") setSortOption("manual");
+
           dragSrcIndex = Number(li.dataset.index);
           li.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
@@ -546,8 +599,7 @@
         toIndex < 0 ||
         fromIndex >= fileItems.length ||
         toIndex >= fileItems.length
-      )
-        return;
+      ) return;
       const [moved] = fileItems.splice(fromIndex, 1);
       fileItems.splice(toIndex, 0, moved);
     }
@@ -556,6 +608,7 @@
       if (fileItems.length === 0) return;
       if (confirm("모든 파일을 목록에서 제거할까요?")) {
         fileItems = [];
+        setSortOption("manual");
         renderFileList();
       }
     });
