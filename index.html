@@ -132,7 +132,7 @@
       flex-wrap: wrap;
     }
 
-    /* 정렬 UI 추가 */
+    /* 정렬 UI */
     .sort-wrap {
       display: inline-flex;
       align-items: center;
@@ -320,8 +320,8 @@
         <div class="list-header-left">
           <span>파일 목록 (드래그해서 순서 변경 가능)</span>
 
-          <!-- ✅ 정렬 옵션 추가 -->
-          <div class="sort-wrap" title="정렬을 적용한 뒤 드래그로 바꾸면 수동으로 전환됩니다.">
+          <!-- 정렬 옵션 -->
+          <div class="sort-wrap" title="정렬 적용 후 드래그하면 수동으로 전환됩니다.">
             <span class="sort-label">정렬</span>
             <select class="sort-select" id="sort-select">
               <option value="manual" selected>수동(드래그)</option>
@@ -363,7 +363,7 @@
     const dropTitle = document.getElementById("drop-title");
     const dropSub = document.getElementById("drop-sub");
 
-    // ✅ 정렬 셀렉트
+    // 정렬
     const sortSelect = document.getElementById("sort-select");
     let sortOption = "manual";
 
@@ -423,7 +423,7 @@
       }
 
       fileItems = [];
-      setSortOption("manual"); // ✅ 모드 바꾸면 정렬도 초기화
+      setSortOption("manual");
       renderFileList();
     }
 
@@ -495,12 +495,9 @@
         fileItems.push({
           id: now.toString() + "-" + idx.toString() + "-" + Math.random().toString(16).slice(2),
           file,
-          addedAt: now + idx, // ✅ 추가 시간(시간순 정렬용, 동일 ms 방지)
+          addedAt: now + idx,
         });
       });
-
-      // ✅ 파일 추가 후에는 "현재 선택된 정렬"을 강제 적용하지 않음(드래그 우선)
-      // 필요하면 여기서 applySort(sortOption) 호출로 "항상 정렬 유지"로 바꿀 수 있음.
 
       renderFileList();
     }
@@ -529,9 +526,7 @@
         if (mode === "images") {
           const img = document.createElement("img");
           const reader = new FileReader();
-          reader.onload = (e) => {
-            img.src = e.target.result;
-          };
+          reader.onload = (e) => { img.src = e.target.result; };
           reader.readAsDataURL(item.file);
           thumb.appendChild(img);
         } else {
@@ -568,9 +563,7 @@
         li.appendChild(removeBtn);
 
         li.addEventListener("dragstart", (e) => {
-          // ✅ 드래그 시작하면 "수동"으로 전환(정렬 강제 방지)
           if (sortOption !== "manual") setSortOption("manual");
-
           dragSrcIndex = Number(li.dataset.index);
           li.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
@@ -646,21 +639,64 @@
       }
     });
 
+    // ✅ EXIF 회전 방지: 파일 → (올바른 방향으로 디코딩) → 캔버스 재인코딩(메타 제거) → PDF에 삽입
+    async function normalizeImageForPdf(file) {
+      // 1) EXIF 방향 반영해서 비트맵 생성 (지원 안되면 그냥 생성)
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      } catch (e) {
+        bitmap = await createImageBitmap(file);
+      }
+
+      // 2) 캔버스에 다시 그려서 메타데이터(Orientation) 제거
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.drawImage(bitmap, 0, 0);
+
+      // 3) 다시 Blob으로 (JPEG는 jpeg로, PNG는 png로)
+      const outMime = (file.type === "image/png") ? "image/png" : "image/jpeg";
+      const blob = await new Promise((resolve) => {
+        if (outMime === "image/jpeg") {
+          canvas.toBlob(resolve, outMime, 0.92);
+        } else {
+          canvas.toBlob(resolve, outMime);
+        }
+      });
+
+      // cleanup
+      if (bitmap && bitmap.close) bitmap.close();
+
+      if (!blob) {
+        // 극단적 예외: toBlob 실패 시 원본 사용
+        return { arrayBuffer: await file.arrayBuffer(), mime: file.type };
+      }
+
+      return { arrayBuffer: await blob.arrayBuffer(), mime: outMime };
+    }
+
     async function createPdfFromImages() {
       const { PDFDocument } = PDFLib;
       const pdfDoc = await PDFDocument.create();
 
       for (const item of fileItems) {
         const file = item.file;
-        const arrayBuffer = await file.arrayBuffer();
+
+        // ✅ 회전 방지 적용된 이미지 바이트
+        const normalized = await normalizeImageForPdf(file);
+
         let image;
-        if (file.type === "image/png") {
-          image = await pdfDoc.embedPng(arrayBuffer);
+        if (normalized.mime === "image/png") {
+          image = await pdfDoc.embedPng(normalized.arrayBuffer);
         } else {
-          image = await pdfDoc.embedJpg(arrayBuffer);
+          image = await pdfDoc.embedJpg(normalized.arrayBuffer);
         }
 
         const imgDims = image.scale(1);
+
+        // 기본 페이지(기본값) 위에 이미지 맞춰 넣기
         const page = pdfDoc.addPage();
         const pageWidth = page.getWidth();
         const pageHeight = page.getHeight();
@@ -669,6 +705,7 @@
           pageWidth / imgDims.width,
           pageHeight / imgDims.height
         );
+
         const imgWidth = imgDims.width * scale;
         const imgHeight = imgDims.height * scale;
 
@@ -691,10 +728,7 @@
       for (const item of fileItems) {
         const bytes = await item.file.arrayBuffer();
         const pdf = await PDFDocument.load(bytes);
-        const copiedPages = await mergedPdf.copyPages(
-          pdf,
-          pdf.getPageIndices()
-        );
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
         copiedPages.forEach((p) => mergedPdf.addPage(p));
       }
 
