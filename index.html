@@ -83,7 +83,39 @@
       padding: 10px;
       background: #111827;
       color: #f9fafb;
-      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      gap: 6px;
+    }
+    .browse-btn span { font-size: 14px; }
+    #file-input { display: none; }
+
+    .list-container { margin-top: 20px; }
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .list-header-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* 정렬 UI */
+    .sort-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
       border-radius: 999px;
       cursor: pointer;
       margin-right: 10px;
@@ -143,9 +175,29 @@
       <input type="file" id="file-input" multiple />
     </div>
 
-    <div class="editor-container" id="editor-container" style="display: none;">
-      <button class="editor-btn" id="delete-btn" disabled>페이지 삭제</button>
-      <button class="editor-btn" id="insert-btn" disabled>페이지 삽입</button>
+    <!-- 파일 리스트 -->
+    <div class="list-container">
+      <div class="list-header">
+        <div class="list-header-left">
+          <span>파일 목록 (드래그해서 순서 변경 가능)</span>
+
+          <!-- 정렬 옵션 -->
+          <div class="sort-wrap" title="정렬 적용 후 드래그하면 수동으로 전환됩니다.">
+            <span class="sort-label">정렬</span>
+            <select class="sort-select" id="sort-select">
+              <option value="manual" selected>수동(드래그)</option>
+              <option value="name-asc">이름순 (A→Z)</option>
+              <option value="name-desc">이름순 (Z→A)</option>
+              <option value="time-asc">시간순 (오래된→최신)</option>
+              <option value="time-desc">시간순 (최신→오래된)</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="clear-btn" id="clear-btn" type="button">전체 지우기</button>
+      </div>
+
+      <ul class="file-list" id="file-list"></ul>
     </div>
 
     <div class="pdf-container" id="pdf-container" style="display: none;">
@@ -157,14 +209,48 @@
     const dropZone = document.getElementById("drop-zone");
     const fileInput = document.getElementById("file-input");
     const modeSwitch = document.getElementById("mode-switch");
-    const editorContainer = document.getElementById("editor-container");
-    const deleteBtn = document.getElementById("delete-btn");
-    const insertBtn = document.getElementById("insert-btn");
-    const pdfCanvas = document.getElementById("pdf-canvas");
-    let mode = "images"; // 기본 모드
-    let pdfDoc = null;
-    let currentPage = 1;
-    let totalPages = 0;
+    const modeHint = document.getElementById("mode-hint");
+    const browseBtn = document.getElementById("browse-btn");
+    const dropTitle = document.getElementById("drop-title");
+    const dropSub = document.getElementById("drop-sub");
+
+    // 정렬
+    const sortSelect = document.getElementById("sort-select");
+    let sortOption = "manual";
+
+    let mode = "images"; // "images" or "merge"
+    let fileItems = [];
+    let dragSrcIndex = null;
+
+    function setSortOption(next) {
+      sortOption = next;
+      sortSelect.value = next;
+    }
+
+    function applySort(option) {
+      if (option === "manual") return;
+
+      if (option === "name-asc") {
+        fileItems.sort((a, b) =>
+          a.file.name.localeCompare(b.file.name, "ko", { numeric: true, sensitivity: "base" })
+        );
+      } else if (option === "name-desc") {
+        fileItems.sort((a, b) =>
+          b.file.name.localeCompare(a.file.name, "ko", { numeric: true, sensitivity: "base" })
+        );
+      } else if (option === "time-asc") {
+        fileItems.sort((a, b) => a.addedAt - b.addedAt);
+      } else if (option === "time-desc") {
+        fileItems.sort((a, b) => b.addedAt - a.addedAt);
+      }
+    }
+
+    sortSelect.addEventListener("change", (e) => {
+      const val = e.target.value;
+      setSortOption(val);
+      applySort(val);
+      renderFileList();
+    });
 
     function updateModeUI() {
       const options = modeSwitch.querySelectorAll(".mode-option");
@@ -179,6 +265,8 @@
         editorContainer.style.display = "none";
       }
 
+      fileItems = [];
+      setSortOption("manual");
       renderFileList();
     }
 
@@ -211,6 +299,17 @@
       } else {
         alert("PDF 파일만 지원됩니다.");
       }
+
+      const now = Date.now();
+      filtered.forEach((file, idx) => {
+        fileItems.push({
+          id: now.toString() + "-" + idx.toString() + "-" + Math.random().toString(16).slice(2),
+          file,
+          addedAt: now + idx,
+        });
+      });
+
+      renderFileList();
     }
 
     function loadPdf(file) {
@@ -238,8 +337,69 @@
         };
         page.render(renderContext);
 
-        deleteBtn.disabled = currentPage === 1;
-        insertBtn.disabled = currentPage === totalPages;
+        const thumb = document.createElement("div");
+        thumb.className = "file-thumb";
+
+        if (mode === "images") {
+          const img = document.createElement("img");
+          const reader = new FileReader();
+          reader.onload = (e) => { img.src = e.target.result; };
+          reader.readAsDataURL(item.file);
+          thumb.appendChild(img);
+        } else {
+          thumb.textContent = "📄";
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "file-meta";
+
+        const name = document.createElement("div");
+        name.className = "file-name";
+        name.textContent = item.file.name;
+
+        const size = document.createElement("div");
+        size.className = "file-size";
+        size.textContent = formatBytes(item.file.size);
+
+        meta.appendChild(name);
+        meta.appendChild(size);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "remove-btn";
+        removeBtn.type = "button";
+        removeBtn.textContent = "✕";
+        removeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileItems.splice(index, 1);
+          renderFileList();
+        });
+
+        li.appendChild(handle);
+        li.appendChild(thumb);
+        li.appendChild(meta);
+        li.appendChild(removeBtn);
+
+        li.addEventListener("dragstart", (e) => {
+          if (sortOption !== "manual") setSortOption("manual");
+          dragSrcIndex = Number(li.dataset.index);
+          li.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+        });
+
+        li.addEventListener("dragend", () => {
+          li.classList.remove("dragging");
+        });
+
+        li.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          const targetIndex = Number(li.dataset.index);
+          if (targetIndex === dragSrcIndex || dragSrcIndex === null) return;
+          moveItem(dragSrcIndex, targetIndex);
+          dragSrcIndex = targetIndex;
+          renderFileList();
+        });
+
+        fileListEl.appendChild(li);
       });
     }
 
@@ -256,6 +416,117 @@
         alert("페이지 삽입 기능은 PDF-lib를 활용하여 추가할 수 있습니다.");
       }
     });
+
+    // ✅ EXIF 회전 방지: 파일 → (올바른 방향으로 디코딩) → 캔버스 재인코딩(메타 제거) → PDF에 삽입
+    async function normalizeImageForPdf(file) {
+      // 1) EXIF 방향 반영해서 비트맵 생성 (지원 안되면 그냥 생성)
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      } catch (e) {
+        bitmap = await createImageBitmap(file);
+      }
+
+      // 2) 캔버스에 다시 그려서 메타데이터(Orientation) 제거
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d", { alpha: false });
+      ctx.drawImage(bitmap, 0, 0);
+
+      // 3) 다시 Blob으로 (JPEG는 jpeg로, PNG는 png로)
+      const outMime = (file.type === "image/png") ? "image/png" : "image/jpeg";
+      const blob = await new Promise((resolve) => {
+        if (outMime === "image/jpeg") {
+          canvas.toBlob(resolve, outMime, 0.92);
+        } else {
+          canvas.toBlob(resolve, outMime);
+        }
+      });
+
+      // cleanup
+      if (bitmap && bitmap.close) bitmap.close();
+
+      if (!blob) {
+        // 극단적 예외: toBlob 실패 시 원본 사용
+        return { arrayBuffer: await file.arrayBuffer(), mime: file.type };
+      }
+
+      return { arrayBuffer: await blob.arrayBuffer(), mime: outMime };
+    }
+
+    async function createPdfFromImages() {
+      const { PDFDocument } = PDFLib;
+      const pdfDoc = await PDFDocument.create();
+
+      for (const item of fileItems) {
+        const file = item.file;
+
+        // ✅ 회전 방지 적용된 이미지 바이트
+        const normalized = await normalizeImageForPdf(file);
+
+        let image;
+        if (normalized.mime === "image/png") {
+          image = await pdfDoc.embedPng(normalized.arrayBuffer);
+        } else {
+          image = await pdfDoc.embedJpg(normalized.arrayBuffer);
+        }
+
+        const imgDims = image.scale(1);
+
+        // 기본 페이지(기본값) 위에 이미지 맞춰 넣기
+        const page = pdfDoc.addPage();
+        const pageWidth = page.getWidth();
+        const pageHeight = page.getHeight();
+
+        const scale = Math.min(
+          pageWidth / imgDims.width,
+          pageHeight / imgDims.height
+        );
+
+        const imgWidth = imgDims.width * scale;
+        const imgHeight = imgDims.height * scale;
+
+        page.drawImage(image, {
+          x: (pageWidth - imgWidth) / 2,
+          y: (pageHeight - imgHeight) / 2,
+          width: imgWidth,
+          height: imgHeight,
+        });
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      downloadPdf(pdfBytes, "images-to-pdf.pdf");
+    }
+
+    async function mergePdfs() {
+      const { PDFDocument } = PDFLib;
+      const mergedPdf = await PDFDocument.create();
+
+      for (const item of fileItems) {
+        const bytes = await item.file.arrayBuffer();
+        const pdf = await PDFDocument.load(bytes);
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        copiedPages.forEach((p) => mergedPdf.addPage(p));
+      }
+
+      const pdfBytes = await mergedPdf.save();
+      downloadPdf(pdfBytes, "merged.pdf");
+    }
+
+    function downloadPdf(pdfBytes, filename) {
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    }
 
     updateModeUI();
   </script>
